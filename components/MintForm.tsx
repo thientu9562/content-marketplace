@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useAuth } from "@campnetwork/origin/react";
 import { TwitterAPI } from "@campnetwork/origin";
 import { useAccount, useWalletClient, useConnect, useSwitchChain, useBalance } from "wagmi";
-import { mintEmitter } from "./IPList"; // Nhập emitter từ IPList
+import { mintEmitter } from "./IPList";
+import Link from "next/link";
+import { baseCampChain } from "../utils/chain";
 
 interface TwitterUserData {
   data: {
@@ -28,30 +30,6 @@ const MintForm = () => {
   const [status, setStatus] = useState("");
   const [attributionData, setAttributionData] = useState<{ username?: string; followers?: number } | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-
-  const baseCampChain = {
-    id: 123420001114,
-    name: "Basecamp",
-    nativeCurrency: {
-      decimals: 18,
-      name: "Camp",
-      symbol: "CAMP",
-    },
-    rpcUrls: {
-      default: {
-        http: [
-          "https://rpc-campnetwork.xyz",
-          "https://rpc.basecamp.t.raas.gelato.cloud",
-        ],
-      },
-    },
-    blockExplorers: {
-      default: {
-        name: "Explorer",
-        url: "https://basecamp.cloud.blockscout.com/",
-      },
-    },
-  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -152,6 +130,16 @@ const MintForm = () => {
     }
   };
 
+  const clearForm = () => {
+    setTitle("");
+    setDescription("");
+    setLicense("CC-BY");
+    setTwitterUsername("");
+    setFile(null);
+    setPreview(null);
+    setAttributionData(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!origin || !jwt || !isConnected) {
@@ -228,9 +216,8 @@ const MintForm = () => {
         setStatus(`Đang mint IP trên BaseCAMP... (${percent}%)`);
       };
 
-      const result = await origin.mintFile(file, meta, licence, parentId, { progressCallback });
-      console.log("Kết quả mint:", result);
-      setStatus(`IP đã được mint! Giao dịch: ${JSON.stringify(result)}`);
+      await origin.mintFile(file, meta, licence, parentId, { progressCallback });
+      setStatus(`IP đã được mint!`);
 
       // Phát sự kiện để thông báo mint mới (cho trường hợp cùng trang)
       if (address) {
@@ -241,6 +228,9 @@ const MintForm = () => {
       if (address) {
         localStorage.setItem(`needsIPRefresh_${address}`, 'true');
       }
+
+      // Automatically clear the form after successful mint
+      clearForm();
     } catch (error) {
       const errMessage = (error as Error).message;
       setStatus(`Lỗi khi mint: ${errMessage}`);
@@ -254,73 +244,86 @@ const MintForm = () => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-md">
-      <div className="mb-4">
-        <label>Tiêu đề:</label>
+    <form onSubmit={handleSubmit} className="w-full max-w-md bg-white p-8 rounded-lg shadow-lg">
+      <div className="mb-6">
+        <label className="form-label">Tiêu đề:</label>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full p-2 border"
+          className="form-input"
           required
         />
       </div>
-      <div className="mb-4">
-        <label>Mô tả:</label>
+      <div className="mb-6">
+        <label className="form-label">Mô tả:</label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="w-full p-2 border"
+          className="form-input h-32 resize-none"
           required
         />
       </div>
-      <div className="mb-4">
-        <label>Giấy phép:</label>
-        <select value={license} onChange={(e) => setLicense(e.target.value)} className="w-full p-2 border">
+      <div className="mb-6">
+        <label className="form-label">Giấy phép:</label>
+        <select value={license} onChange={(e) => setLicense(e.target.value)} className="form-select">
           <option value="CC-BY">CC-BY (Ghi nhận)</option>
           <option value="CC-BY-SA">CC-BY-SA (Chia sẻ tương tự)</option>
           <option value="Custom">Tùy chỉnh</option>
         </select>
       </div>
-      <div className="mb-4">
-        <label>Tên người dùng Twitter để ghi nhận:</label>
+      <div className="mb-6">
+        <label className="form-label">Tên người dùng Twitter để ghi nhận:</label>
         <input
           type="text"
           value={twitterUsername}
           onChange={(e) => setTwitterUsername(e.target.value)}
-          className="w-full p-2 border"
+          className="form-input"
         />
-        <button type="button" onClick={fetchSocialData} className="bg-yellow-500 text-white px-4 py-2 mt-2">
+        <button type="button" onClick={fetchSocialData} className="form-button button-yellow mt-3">
           Lấy dữ liệu Twitter
         </button>
       </div>
-      <div className="mb-4">
-        <label>Tệp (Hình ảnh/Văn bản/Âm nhạc):</label>
-        <input type="file" onChange={handleFileChange} className="w-full" required />
+      <div className="mb-6">
+        <label className="form-label">Tệp (Hình ảnh/Văn bản/Âm nhạc):</label>
+        <div className="relative">
+          <input
+            type="file"
+            onChange={handleFileChange}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            id="file-upload"
+            required
+          />
+          <label htmlFor="file-upload" className="file-upload-button">
+            Chọn tệp
+          </label>
+        </div>
         {preview && (
           <div className="mt-4">
-            <p>Xem trước hình ảnh:</p>
-            <img src={preview} alt="Xem trước đã tải lên" className="max-w-full h-auto rounded" />
+            <p className="text-sm text-gray-600 mb-2">Xem trước hình ảnh:</p>
+            <img src={preview} alt="Xem trước đã tải lên" className="preview-image" />
           </div>
         )}
       </div>
       {!isConnected && (
-        <button type="button" onClick={handleConnect} className="bg-green-500 text-white px-4 py-2 mb-4">
+        <button type="button" onClick={handleConnect} className="form-button button-green mb-6">
           Kết nối ví & Xác thực
         </button>
       )}
-      {isConnected && <p className="mb-4">Đã kết nối: {address}</p>}
       <button
         type="submit"
         disabled={!isConnected || !walletClient}
-        className="bg-blue-500 text-white px-4 py-2 disabled:bg-gray-500"
+        className="form-button button-blue"
       >
         Mint nội dung
       </button>
-      <p className="mt-4">{status}</p>
-      {connectError && <p className="mt-4 text-red-500">Lỗi kết nối: {connectError.message}</p>}
-      {!walletClient && <p className="mt-4 text-red-500">WalletClient chưa kết nối. Vui lòng kết nối lại ví.</p>}
-      {balance && <p className="mt-4">Số dư: {balance.formatted} CAMP</p>}
+      <p className="status-text">{status}</p>
+      {connectError && <p className="error-text">Lỗi kết nối: {connectError.message}</p>}
+      {!walletClient && <p className="error-text">WalletClient chưa kết nối. Vui lòng kết nối lại ví.</p>}
+      {balance && <p className="mt-4 text-center text-gray-700">Số dư: {parseFloat(balance.formatted).toFixed(4).replace(/\.?0+$/, "")} CAMP</p>}
+      <Link href="/marketplace" className="link-text">
+        Đi đến Marketplace
+      </Link>
     </form>
   );
 };

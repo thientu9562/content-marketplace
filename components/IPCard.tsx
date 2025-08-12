@@ -1,5 +1,5 @@
 import { ExtendedIPData } from "../utils/types";
-import { useAccount } from "wagmi";
+
 import Link from "next/link";
 
 interface IPCardProps {
@@ -21,14 +21,10 @@ export default function IPCard({ ip }: IPCardProps) {
           className="w-full h-48 object-cover rounded mt-2"
         />
       )}
-      <p className="text-xs text-gray-500 mt-2">Token ID: {ip.tokenId}</p>
       <p className="text-xs text-gray-500">Creator: {ip.creator}</p>
       <div className="mt-4">
           <Link href={`/transfer/${ip.tokenId}`}>
             <button className="bg-red-500 text-white px-4 py-2 mr-2 rounded">Transfer</button>
-          </Link>
-          <Link href={`/buy-license/${ip.tokenId}`}>
-            <button className="bg-green-500 text-white px-4 py-2 rounded">Buy License (Create Derivative)</button>
           </Link>
       </div>
     </div>

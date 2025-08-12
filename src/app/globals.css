@@ -24,3 +24,63 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+body {
+  @apply bg-gray-50 text-gray-900 font-sans;
+}
+
+main {
+  @apply flex flex-col items-center justify-center min-h-screen p-6 md:p-24 bg-gradient-to-b from-blue-100 to-gray-50;
+}
+
+h1 {
+  @apply text-3xl md:text-4xl font-extrabold text-gray-800 mb-8 tracking-tight text-center;
+}
+
+.form-label {
+  @apply block text-lg font-bold text-gray-700 mb-2;
+}
+
+.form-input {
+  @apply w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+}
+
+.form-select {
+  @apply w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500;
+}
+
+.form-button {
+  @apply w-full px-6 py-3 text-lg font-semibold text-white rounded-lg shadow-md transition-all duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.button-blue {
+  @apply bg-blue-500 hover:bg-blue-600 focus:ring-blue-500;
+}
+
+.button-green {
+  @apply bg-green-500 hover:bg-green-600 focus:ring-green-500;
+}
+
+.button-yellow {
+  @apply bg-yellow-500 hover:bg-yellow-600 focus:ring-yellow-500;
+}
+
+.file-upload-button {
+  @apply inline-block px-6 py-3 bg-indigo-500 text-white font-medium text-lg rounded-lg cursor-pointer hover:bg-indigo-600 transition duration-300;
+}
+
+.preview-image {
+  @apply mt-4 max-w-full h-auto rounded-lg shadow-md border border-gray-300;
+}
+
+.status-text {
+  @apply mt-4 text-sm text-gray-600;
+}
+
+.error-text {
+  @apply mt-4 text-sm text-red-500;
+}
+
+.link-text {
+  @apply mt-6 text-blue-500 hover:underline text-center block;
+}

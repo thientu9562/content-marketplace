@@ -7,6 +7,7 @@ import { campNetwork } from "../utils/chain";
 import IPCard from "./IPCard";
 import { IPData } from "../utils/types";
 import mitt from "mitt";
+import Link from "next/link";
 
 const CONTRACT_ADDRESS = "0xF90733b9eCDa3b49C250B2C3E3E42c96fC93324E" as `0x${string}`;
 const MAX_BLOCK_RANGE = 100000; // Maximum block range allowed by RPC
@@ -104,7 +105,7 @@ export default function MintedIPsList() {
               }
 
               return {
-                tokenId: Number(tokenId),
+                tokenId: tokenId?.toString() || "",
                 creator: creator as `0x${string}`,
                 contentHash: contentHash as `0x${string}`,
                 tokenURI,
@@ -222,6 +223,9 @@ export default function MintedIPsList() {
         </div>
       )}
       {status && <p className="text-sm text-red-600 mt-2">{status}</p>}
+      <Link href="/mint" className="link-text">
+              Mint page
+      </Link>
     </div>
   );
 }

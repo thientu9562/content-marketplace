@@ -1,5 +1,5 @@
 export interface IPData {
-  tokenId: number;
+  tokenId: string;
   creator?: `0x${string}`;
   contentHash?: `0x${string}`;
   tokenURI: string;
