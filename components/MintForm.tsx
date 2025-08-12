@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAuth } from "@campnetwork/origin/react";
 import { TwitterAPI } from "@campnetwork/origin";
 import { useAccount, useWalletClient, useConnect, useSwitchChain, useBalance } from "wagmi";
+import { mintEmitter } from "./IPList"; // Nhập emitter từ IPList
 
 interface TwitterUserData {
   data: {
@@ -73,53 +74,53 @@ const MintForm = () => {
 
   const fetchSocialData = async () => {
     if (!jwt || !twitterUsername) {
-      setStatus("Please authenticate and provide Twitter username.");
+      setStatus("Vui lòng xác thực và cung cấp tên người dùng Twitter.");
       return;
     }
 
     try {
-      setStatus("Fetching Twitter data for attribution...");
+      setStatus("Đang lấy dữ liệu Twitter để ghi nhận...");
       const twitterAPI = new TwitterAPI({ apiKey: "4f1a2c9c-008e-4a2e-8712-055fa04f9ffa" });
       const userData = await twitterAPI.fetchUserByUsername(twitterUsername) as TwitterUserData;
       setAttributionData({
         username: userData.data.username,
         followers: userData.data.public_metrics.followers_count,
       });
-      setStatus(`Twitter data fetched: @${userData.data.username} (Followers: ${userData.data.public_metrics.followers_count})`);
+      setStatus(`Dữ liệu Twitter đã lấy: @${userData.data.username} (Người theo dõi: ${userData.data.public_metrics.followers_count})`);
     } catch (error) {
-      setStatus(`Error fetching social data: ${(error as Error).message}`);
+      setStatus(`Lỗi khi lấy dữ liệu mạng xã hội: ${(error as Error).message}`);
     }
   };
 
   const handleConnect = async () => {
     try {
-      setStatus("Connecting wallet...");
+      setStatus("Đang kết nối ví...");
       await connect();
-      setStatus(isConnected ? `Connected to ${address}` : "Connected successfully");
+      setStatus(isConnected ? `Đã kết nối với ${address}` : "Kết nối thành công");
       if (walletClient) {
         try {
           await walletClient.addChain({ chain: baseCampChain });
           await switchChainAsync({ chainId: 123420001114 });
-          console.log("Switched to BaseCAMP");
-          setStatus("Connected and switched to BaseCAMP");
+          console.log("Đã chuyển sang BaseCAMP");
+          setStatus("Đã kết nối và chuyển sang BaseCAMP");
         } catch (switchError) {
-          setStatus(`Failed to switch chain: ${(switchError as Error).message}`);
+          setStatus(`Không thể chuyển chain: ${(switchError as Error).message}`);
         }
       }
     } catch (error) {
-      setStatus(`Camp connect failed: ${(error as Error).message}`);
+      setStatus(`Kết nối Camp thất bại: ${(error as Error).message}`);
       try {
-        setStatus("Falling back to wagmi connect...");
+        setStatus("Đang thử kết nối qua wagmi...");
         await wagmiConnect({ connector: connectors[0] });
-        setStatus(isConnected ? `Connected to ${address}` : "Wagmi connect successful");
+        setStatus(isConnected ? `Đã kết nối với ${address}` : "Kết nối wagmi thành công");
         if (walletClient) {
           await walletClient.addChain({ chain: baseCampChain });
           await switchChainAsync({ chainId: 123420001114 });
-          console.log("Switched to BaseCAMP via wagmi");
-          setStatus("Connected and switched to BaseCAMP");
+          console.log("Đã chuyển sang BaseCAMP qua wagmi");
+          setStatus("Đã kết nối và chuyển sang BaseCAMP");
         }
       } catch (wagmiError) {
-        setStatus(`Wagmi connect failed: ${(wagmiError as Error).message}`);
+        setStatus(`Kết nối wagmi thất bại: ${(wagmiError as Error).message}`);
       }
     }
   };
@@ -139,14 +140,14 @@ const MintForm = () => {
 
       const result = await response.json();
       if (!result.IpfsHash) {
-        throw new Error("Failed to get IPFS hash after upload");
+        throw new Error("Không thể lấy hash IPFS sau khi tải lên");
       }
 
       const url = `https://gateway.pinata.cloud/ipfs/${result.IpfsHash}`;
-      setStatus(`File uploaded to IPFS: ${url}`);
+      setStatus(`Tệp đã được tải lên IPFS: ${url}`);
       return url;
     } catch (error) {
-      setStatus(`IPFS upload error: ${(error as Error).message}`);
+      setStatus(`Lỗi tải lên IPFS: ${(error as Error).message}`);
       throw error;
     }
   };
@@ -154,51 +155,51 @@ const MintForm = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!origin || !jwt || !isConnected) {
-      setStatus("Please connect your wallet first.");
+      setStatus("Vui lòng kết nối ví của bạn trước.");
       return;
     }
     if (!file) {
-      setStatus("Please select a file.");
+      setStatus("Vui lòng chọn một tệp.");
       return;
     }
     if (!walletClient) {
-      setStatus("WalletClient not connected. Please reconnect your wallet.");
+      setStatus("WalletClient chưa kết nối. Vui lòng kết nối lại ví.");
       return;
     }
 
     try {
       // Verify WalletClient and chain
-      setStatus("Verifying WalletClient...");
+      setStatus("Đang xác minh WalletClient...");
       const chainId = await walletClient.getChainId();
       if (chainId !== 123420001114) {
-        setStatus("Wrong chain. Switching to BaseCAMP...");
+        setStatus("Chain không đúng. Đang chuyển sang BaseCAMP...");
         try {
           await walletClient.addChain({ chain: baseCampChain });
           await switchChainAsync({ chainId: 123420001114 });
-          setStatus("Switched to BaseCAMP");
+          setStatus("Đã chuyển sang BaseCAMP");
         } catch (switchError) {
-          setStatus(`Failed to switch chain: ${(switchError as Error).message}`);
+          setStatus(`Không thể chuyển chain: ${(switchError as Error).message}`);
           return;
         }
       }
 
       // Check CAMP balance
       if (balance && balance.value === 0n) {
-        setStatus("No CAMP in wallet. Please add testnet CAMP from faucet.");
+        setStatus("Không có CAMP trong ví. Vui lòng thêm testnet CAMP từ faucet.");
         return;
       }
 
       // Upload file to IPFS
-      setStatus("Uploading file to IPFS...");
+      setStatus("Đang tải tệp lên IPFS...");
       const ipfsUrl = await uploadToIPFS(file);
 
       // Prepare metadata with IPFS URL
       const meta = {
-        title: title || "Untitled Content",
-        description: description || "No description provided",
+        title: title || "Nội dung không có tiêu đề",
+        description: description || "Không có mô tả",
         category: file.type.startsWith("image/") ? "Image" : file.type.startsWith("audio/") ? "Music" : "Text",
         image: ipfsUrl,
-        attribution: attributionData ? `Created by @${attributionData.username} (Followers: ${attributionData.followers})` : "Anonymous",
+        attribution: attributionData ? `Tạo bởi @${attributionData.username} (Người theo dõi: ${attributionData.followers})` : "Ẩn danh",
         attributes: [
           {
             trait_type: "Type",
@@ -221,23 +222,33 @@ const MintForm = () => {
 
       const parentId = 0n;
 
-      setStatus("Minting IP on BaseCAMP...");
+      setStatus("Đang mint IP trên BaseCAMP...");
       const progressCallback = (percent: number) => {
-        console.log(`Mint progress: ${percent}%`);
-        setStatus(`Minting IP on BaseCAMP... (${percent}%)`);
+        console.log(`Tiến trình mint: ${percent}%`);
+        setStatus(`Đang mint IP trên BaseCAMP... (${percent}%)`);
       };
 
       const result = await origin.mintFile(file, meta, licence, parentId, { progressCallback });
-      console.log("Mint result:", result);
-      setStatus(`IP Minted! Transaction: ${JSON.stringify(result)}`);
+      console.log("Kết quả mint:", result);
+      setStatus(`IP đã được mint! Giao dịch: ${JSON.stringify(result)}`);
+
+      // Phát sự kiện để thông báo mint mới (cho trường hợp cùng trang)
+      if (address) {
+        mintEmitter.emit("newMint", address as `0x${string}`);
+      }
+
+      // Set flag cần refresh trong localStorage (cho trường hợp reload hoặc trang khác)
+      if (address) {
+        localStorage.setItem(`needsIPRefresh_${address}`, 'true');
+      }
     } catch (error) {
       const errMessage = (error as Error).message;
-      setStatus(`Mint error: ${errMessage}`);
-      console.error("Mint error details:", error);
+      setStatus(`Lỗi khi mint: ${errMessage}`);
+      console.error("Chi tiết lỗi mint:", error);
       if (errMessage.includes("signature")) {
-        setStatus("Signature failed. Please approve the transaction in MetaMask and ensure enough CAMP for gas.");
+        setStatus("Ký giao dịch thất bại. Vui lòng phê duyệt giao dịch trong MetaMask và đảm bảo đủ CAMP để trả phí gas.");
       } else if (errMessage.includes("gas")) {
-        setStatus("Insufficient gas. Please add more CAMP to your wallet.");
+        setStatus("Không đủ gas. Vui lòng thêm CAMP vào ví của bạn.");
       }
     }
   };
@@ -245,7 +256,7 @@ const MintForm = () => {
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-md">
       <div className="mb-4">
-        <label>Title:</label>
+        <label>Tiêu đề:</label>
         <input
           type="text"
           value={title}
@@ -255,7 +266,7 @@ const MintForm = () => {
         />
       </div>
       <div className="mb-4">
-        <label>Description:</label>
+        <label>Mô tả:</label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -264,15 +275,15 @@ const MintForm = () => {
         />
       </div>
       <div className="mb-4">
-        <label>License:</label>
+        <label>Giấy phép:</label>
         <select value={license} onChange={(e) => setLicense(e.target.value)} className="w-full p-2 border">
-          <option value="CC-BY">CC-BY (Attribution)</option>
-          <option value="CC-BY-SA">CC-BY-SA (Share Alike)</option>
-          <option value="Custom">Custom</option>
+          <option value="CC-BY">CC-BY (Ghi nhận)</option>
+          <option value="CC-BY-SA">CC-BY-SA (Chia sẻ tương tự)</option>
+          <option value="Custom">Tùy chỉnh</option>
         </select>
       </div>
       <div className="mb-4">
-        <label>Twitter Username for Attribution:</label>
+        <label>Tên người dùng Twitter để ghi nhận:</label>
         <input
           type="text"
           value={twitterUsername}
@@ -280,36 +291,36 @@ const MintForm = () => {
           className="w-full p-2 border"
         />
         <button type="button" onClick={fetchSocialData} className="bg-yellow-500 text-white px-4 py-2 mt-2">
-          Fetch Twitter Data
+          Lấy dữ liệu Twitter
         </button>
       </div>
       <div className="mb-4">
-        <label>File (Image/Text/Music):</label>
+        <label>Tệp (Hình ảnh/Văn bản/Âm nhạc):</label>
         <input type="file" onChange={handleFileChange} className="w-full" required />
         {preview && (
           <div className="mt-4">
-            <p>Image Preview:</p>
-            <img src={preview} alt="Uploaded preview" className="max-w-full h-auto rounded" />
+            <p>Xem trước hình ảnh:</p>
+            <img src={preview} alt="Xem trước đã tải lên" className="max-w-full h-auto rounded" />
           </div>
         )}
       </div>
       {!isConnected && (
         <button type="button" onClick={handleConnect} className="bg-green-500 text-white px-4 py-2 mb-4">
-          Connect Wallet & Auth
+          Kết nối ví & Xác thực
         </button>
       )}
-      {isConnected && <p className="mb-4">Connected: {address}</p>}
+      {isConnected && <p className="mb-4">Đã kết nối: {address}</p>}
       <button
         type="submit"
         disabled={!isConnected || !walletClient}
         className="bg-blue-500 text-white px-4 py-2 disabled:bg-gray-500"
       >
-        Mint Content
+        Mint nội dung
       </button>
       <p className="mt-4">{status}</p>
-      {connectError && <p className="mt-4 text-red-500">Connect Error: {connectError.message}</p>}
-      {!walletClient && <p className="mt-4 text-red-500">WalletClient not connected. Please reconnect ví.</p>}
-      {balance && <p className="mt-4">Balance: {balance.formatted} CAMP</p>}
+      {connectError && <p className="mt-4 text-red-500">Lỗi kết nối: {connectError.message}</p>}
+      {!walletClient && <p className="mt-4 text-red-500">WalletClient chưa kết nối. Vui lòng kết nối lại ví.</p>}
+      {balance && <p className="mt-4">Số dư: {balance.formatted} CAMP</p>}
     </form>
   );
 };

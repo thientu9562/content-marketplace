@@ -6,6 +6,7 @@ import { useAccount, useWalletClient, useConnect, useSwitchChain } from "wagmi";
 import { campNetwork } from "../utils/chain";
 import IPCard from "./IPCard";
 import { IPData } from "../utils/types";
+import mitt from "mitt";
 
 const CONTRACT_ADDRESS = "0xF90733b9eCDa3b49C250B2C3E3E42c96fC93324E" as `0x${string}`;
 const MAX_BLOCK_RANGE = 100000; // Maximum block range allowed by RPC
@@ -28,6 +29,9 @@ interface ExtendedIPData extends IPData {
   metadata?: IPMetadata;
 }
 
+// Tạo event emitter instance
+const emitter = mitt<{ newMint: `0x${string}` }>();
+
 export default function MintedIPsList() {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
@@ -40,6 +44,7 @@ export default function MintedIPsList() {
   const fetchMintedIPs = async (userAddress: `0x${string}`) => {
     try {
       setIsLoading(true);
+
       const publicClient = createPublicClient({
         chain: campNetwork,
         transport: http(),
@@ -53,9 +58,10 @@ export default function MintedIPsList() {
 
       // Query logs in chunks of MAX_BLOCK_RANGE
       while (currentFromBlock <= latestBlock) {
-        const toBlock = currentFromBlock + BigInt(MAX_BLOCK_RANGE) > latestBlock
-          ? latestBlock
-          : currentFromBlock + BigInt(MAX_BLOCK_RANGE);
+        const toBlock =
+          currentFromBlock + BigInt(MAX_BLOCK_RANGE) > latestBlock
+            ? latestBlock
+            : currentFromBlock + BigInt(MAX_BLOCK_RANGE);
 
         try {
           const logs = await publicClient.getLogs({
@@ -65,8 +71,6 @@ export default function MintedIPsList() {
             fromBlock: currentFromBlock,
             toBlock,
           });
-
-          
 
           const chunkResults = await Promise.all(
             logs.map(async (log) => {
@@ -92,11 +96,11 @@ export default function MintedIPsList() {
                   if (response.ok) {
                     metadata = await response.json();
                   } else {
-                    console.error(`Error fetching metadata for token ${tokenId}`);
+                    console.error(`Lỗi lấy metadata cho token ${tokenId}`);
                   }
                 }
               } catch (err) {
-                console.error(`Error processing tokenURI for ${tokenId}:`, err);
+                console.error(`Lỗi xử lý tokenURI cho ${tokenId}:`, err);
               }
 
               return {
@@ -111,57 +115,92 @@ export default function MintedIPsList() {
           );
 
           results.push(...chunkResults);
-
         } catch (chunkError) {
-          console.error(`Error querying logs for block range ${currentFromBlock} to ${toBlock}:`, chunkError);
+          console.error(
+            `Lỗi truy vấn logs cho khoảng block ${currentFromBlock} đến ${toBlock}:`,
+            chunkError
+          );
         }
 
         currentFromBlock = toBlock + 1n;
       }
-console.log(`đây là log event:`, results);
+
+      console.log(`Đã lấy dữ liệu sự kiện:`, results);
+
+      // Lưu dữ liệu vào localStorage và reset flag refresh
+      localStorage.setItem(`mintedIPs_${userAddress}`, JSON.stringify(results));
+      localStorage.setItem(`needsIPRefresh_${userAddress}`, 'false');
       setIps(results);
     } catch (error) {
-      console.error("Error querying minted IPs:", error);
-      setStatus("Error loading IPs. Please try again.");
+      console.error("Lỗi truy vấn IPs đã mint:", error);
+      setStatus("Lỗi tải IPs. Vui lòng thử lại.");
     } finally {
       setIsLoading(false);
     }
   };
 
+  const loadFromLocalStorage = (userAddress: `0x${string}`): ExtendedIPData[] => {
+    const cachedData = localStorage.getItem(`mintedIPs_${userAddress}`);
+    return cachedData ? JSON.parse(cachedData) : [];
+  };
+
   const handleConnect = async () => {
     try {
       if (!isConnected) {
-        setStatus("Connecting wallet...");
+        setStatus("Đang kết nối ví...");
         await connect({ connector: connectors[0] });
       }
       if (walletClient) {
         const chainId = await walletClient.getChainId();
         if (chainId !== campNetwork.id) {
-          setStatus("Switching to BaseCAMP...");
+          setStatus("Đang chuyển sang BaseCAMP...");
           await switchChainAsync({ chainId: campNetwork.id });
         }
       }
     } catch (error) {
-      console.error("Error connecting wallet:", error);
-      setStatus("Failed to connect wallet.");
+      console.error("Lỗi khi kết nối ví:", error);
+      setStatus("Kết nối ví thất bại.");
     }
   };
 
   useEffect(() => {
     if (isConnected && address) {
-      fetchMintedIPs(address as `0x${string}`);
+      const userAddress = address as `0x${string}`;
+      // Kiểm tra flag cần refresh
+      const needsRefresh = localStorage.getItem(`needsIPRefresh_${userAddress}`) === 'true';
+      // Tải dữ liệu từ localStorage trước
+      const cachedIPs = loadFromLocalStorage(userAddress);
+      if (cachedIPs.length > 0 && !needsRefresh) {
+        setIps(cachedIPs);
+      } else {
+        fetchMintedIPs(userAddress);
+      }
+
+      // Lắng nghe sự kiện mint mới (cho trường hợp cùng trang)
+      const handleNewMint = (mintedAddress: `0x${string}`) => {
+        if (mintedAddress === userAddress) {
+          fetchMintedIPs(userAddress);
+        }
+      };
+
+      emitter.on("newMint", handleNewMint);
+
+      // Dọn dẹp sự kiện khi component unmount
+      return () => {
+        emitter.off("newMint", handleNewMint);
+      };
     }
   }, [isConnected, address]);
 
   if (!isConnected) {
     return (
       <div className="flex flex-col items-center gap-4 p-4">
-        <p className="text-lg">Please connect your wallet to view minted IPs.</p>
+        <p className="text-lg">Vui lòng kết nối ví của bạn để xem các IP đã mint.</p>
         <button
           onClick={handleConnect}
           className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition"
         >
-          Connect Wallet
+          Kết nối ví
         </button>
         {status && <p className="text-sm text-gray-600">{status}</p>}
       </div>
@@ -170,11 +209,11 @@ console.log(`đây là log event:`, results);
 
   return (
     <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Your Minted IPs</h1>
+      <h1 className="text-2xl font-bold mb-4">Các IP đã mint của bạn</h1>
       {isLoading ? (
-        <p>Loading IPs...</p>
+        <p>Đang tải IPs...</p>
       ) : ips.length === 0 ? (
-        <p>No IPs minted yet.</p>
+        <p>Chưa có IP nào được mint.</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {ips.map((ip) => (
@@ -186,3 +225,5 @@ console.log(`đây là log event:`, results);
     </div>
   );
 }
+
+export const mintEmitter = emitter;
