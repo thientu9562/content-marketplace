@@ -26,9 +26,10 @@ const MintForm = () => {
   const [twitterUsername, setTwitterUsername] = useState("");
   const [status, setStatus] = useState("");
   const [attributionData, setAttributionData] = useState<{ username?: string; followers?: number } | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
 
   const baseCampChain = {
-        id: 123420001114,
+    id: 123420001114,
     name: "Basecamp",
     nativeCurrency: {
       decimals: 18,
@@ -53,7 +54,20 @@ const MintForm = () => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setFile(e.target.files[0]);
+      const selectedFile = e.target.files[0];
+      setFile(selectedFile);
+
+      if (selectedFile.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          if (event.target) {
+            setPreview(event.target.result as string);
+          }
+        };
+        reader.readAsDataURL(selectedFile);
+      } else {
+        setPreview(null);
+      }
     }
   };
 
@@ -110,6 +124,33 @@ const MintForm = () => {
     }
   };
 
+  const uploadToIPFS = async (file: File): Promise<string> => {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_PINATA_JWT}`,
+        },
+        body: formData,
+      });
+
+      const result = await response.json();
+      if (!result.IpfsHash) {
+        throw new Error("Failed to get IPFS hash after upload");
+      }
+
+      const url = `https://gateway.pinata.cloud/ipfs/${result.IpfsHash}`;
+      setStatus(`File uploaded to IPFS: ${url}`);
+      return url;
+    } catch (error) {
+      setStatus(`IPFS upload error: ${(error as Error).message}`);
+      throw error;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!origin || !jwt || !isConnected) {
@@ -126,10 +167,9 @@ const MintForm = () => {
     }
 
     try {
-      // Verify WalletClient và chain
+      // Verify WalletClient and chain
       setStatus("Verifying WalletClient...");
       const chainId = await walletClient.getChainId();
-      console.log("WalletClient chainId:", chainId);
       if (chainId !== 123420001114) {
         setStatus("Wrong chain. Switching to BaseCAMP...");
         try {
@@ -142,24 +182,39 @@ const MintForm = () => {
         }
       }
 
-      // Kiểm tra balance ETH
+      // Check CAMP balance
       if (balance && balance.value === 0n) {
-        setStatus("No ETH in wallet. Please add testnet ETH from faucet.");
+        setStatus("No CAMP in wallet. Please add testnet CAMP from faucet.");
         return;
       }
 
-      // Prepare metadata với attribution từ social data
+      // Upload file to IPFS
+      setStatus("Uploading file to IPFS...");
+      const ipfsUrl = await uploadToIPFS(file);
+
+      // Prepare metadata with IPFS URL
       const meta = {
-        title,
-        description,
+        title: title || "Untitled Content",
+        description: description || "No description provided",
         category: file.type.startsWith("image/") ? "Image" : file.type.startsWith("audio/") ? "Music" : "Text",
+        image: ipfsUrl,
         attribution: attributionData ? `Created by @${attributionData.username} (Followers: ${attributionData.followers})` : "Anonymous",
+        attributes: [
+          {
+            trait_type: "Type",
+            value: file.type.startsWith("image/") ? "Image" : file.type.startsWith("audio/") ? "Music" : "Text",
+          },
+          {
+            trait_type: "License",
+            value: license,
+          },
+        ],
       };
 
-      // Prepare license (sửa duration thành 0n cho BigInt)
+      // Prepare license
       const licence = {
         price: 0n,
-        duration: 200, // Sửa từ 0 thành 0n để đúng BigInt
+        duration: 200,
         royaltyBps: 1000,
         paymentToken: "0x0000000000000000000000000000000000000000" as `0x${string}`,
       };
@@ -167,23 +222,22 @@ const MintForm = () => {
       const parentId = 0n;
 
       setStatus("Minting IP on BaseCAMP...");
-      // Thêm progressCallback để debug upload/mint
       const progressCallback = (percent: number) => {
         console.log(`Mint progress: ${percent}%`);
         setStatus(`Minting IP on BaseCAMP... (${percent}%)`);
       };
-      // Gọi mintFile với progressCallback
+
       const result = await origin.mintFile(file, meta, licence, parentId, { progressCallback });
-      console.log("Kết quả mint file trả về:", result);
+      console.log("Mint result:", result);
       setStatus(`IP Minted! Transaction: ${JSON.stringify(result)}`);
     } catch (error) {
       const errMessage = (error as Error).message;
       setStatus(`Mint error: ${errMessage}`);
       console.error("Mint error details:", error);
       if (errMessage.includes("signature")) {
-        setStatus("Signature failed. Please approve the transaction in MetaMask and ensure enough ETH for gas.");
+        setStatus("Signature failed. Please approve the transaction in MetaMask and ensure enough CAMP for gas.");
       } else if (errMessage.includes("gas")) {
-        setStatus("Insufficient gas. Please add more ETH to your wallet.");
+        setStatus("Insufficient gas. Please add more CAMP to your wallet.");
       }
     }
   };
@@ -232,6 +286,12 @@ const MintForm = () => {
       <div className="mb-4">
         <label>File (Image/Text/Music):</label>
         <input type="file" onChange={handleFileChange} className="w-full" required />
+        {preview && (
+          <div className="mt-4">
+            <p>Image Preview:</p>
+            <img src={preview} alt="Uploaded preview" className="max-w-full h-auto rounded" />
+          </div>
+        )}
       </div>
       {!isConnected && (
         <button type="button" onClick={handleConnect} className="bg-green-500 text-white px-4 py-2 mb-4">
@@ -249,7 +309,7 @@ const MintForm = () => {
       <p className="mt-4">{status}</p>
       {connectError && <p className="mt-4 text-red-500">Connect Error: {connectError.message}</p>}
       {!walletClient && <p className="mt-4 text-red-500">WalletClient not connected. Please reconnect ví.</p>}
-      {balance && <p className="mt-4">Balance: {balance.formatted} ETH</p>}
+      {balance && <p className="mt-4">Balance: {balance.formatted} CAMP</p>}
     </form>
   );
 };
