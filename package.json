@@ -14,6 +14,7 @@
     "@campnetwork/sdk": "^1.4.5",
     "@getpara/evm-wallet-connectors": "^1.18.1",
     "@getpara/react-sdk": "^1.18.1",
+    "@netlify/plugin-nextjs": "^5.12.0",
     "@pinata/sdk": "^2.1.0",
     "@tanstack/react-query": "^5.83.0",
     "ethers": "^6.15.0",
