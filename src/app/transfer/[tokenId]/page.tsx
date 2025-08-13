@@ -1,5 +1,6 @@
 "use client";
 
+// Import necessary libraries and components
 import { useEffect, useState } from "react";
 import { useAccount, useWalletClient, useSwitchChain } from "wagmi";
 import { ExtendedIPData } from "../../../../utils/types";
@@ -10,23 +11,29 @@ import Link from "next/link";
 import { createPublicClient, http, parseAbiItem } from "viem";
 import { mintEmitter } from "../../../../components/IPList";
 
-// Định nghĩa địa chỉ hợp đồng
+// Define contract address as a constant
 const CONTRACT_ADDRESS = "0xF90733b9eCDa3b49C250B2C3E3E42c96fC93324E" as `0x${string}`;
 
+// Main component for the IP transfer page
 export default function TransferPage() {
+  // Extract tokenId from URL parameters
   const params = useParams<{ tokenId: string }>();
   const tokenId = params.tokenId;
+  // Get wallet account details, client, and chain switching functionality
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
   const { switchChainAsync } = useSwitchChain();
+  // Get authentication context for Camp network
   const { origin } = useAuth();
+  // Initialize router for navigation
   const router = useRouter();
+  // State hooks for IP data, recipient address, status, and loading state
   const [ip, setIp] = useState<ExtendedIPData | null>(null);
   const [toAddress, setToAddress] = useState("");
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Tải dữ liệu IP từ localStorage
+  // Load IP data from localStorage
   const loadIPFromLocalStorage = (userAddress: `0x${string}`, tokenId: string): ExtendedIPData | null => {
     const cachedData = localStorage.getItem(`mintedIPs_${userAddress}`);
     if (cachedData) {
@@ -36,22 +43,22 @@ export default function TransferPage() {
     return null;
   };
 
-  // Lấy dữ liệu IP trực tiếp từ hợp đồng nếu không có trong localStorage
+  // Fetch IP data directly from the contract if not found in localStorage
   const fetchIPData = async (tokenId: bigint, userAddress: `0x${string}`): Promise<ExtendedIPData | null> => {
     if (!origin) {
-      setStatus("SDK chưa được khởi tạo.");
+      setStatus("SDK not initialized.");
       return null;
     }
 
     try {
-      // Kiểm tra quyền sở hữu
+      // Check token ownership
       const owner = await origin.ownerOf(tokenId);
       if (owner.toLowerCase() !== userAddress.toLowerCase()) {
-        setStatus("Bạn không phải chủ sở hữu của IP này.");
+        setStatus("You are not the owner of this IP.");
         return null;
       }
 
-      // Kiểm tra trạng thái token
+      // Check token status
       const publicClient = createPublicClient({
         chain: campNetwork,
         transport: http(),
@@ -63,12 +70,12 @@ export default function TransferPage() {
         args: [tokenId],
       });
       if (tokenStatus === 1) {
-        // Giả định: 1 là trạng thái đã xóa
-        setStatus("Token này không tồn tại hoặc đã bị xóa.");
+        // Assumption: 1 indicates deleted status
+        setStatus("This token does not exist or has been deleted.");
         return null;
       }
 
-      // Lấy token URI
+      // Fetch token URI
       let tokenURI = "";
       let metadata: { title: string; description: string; category: string; attribution: string; image: string } | undefined;
       try {
@@ -84,13 +91,14 @@ export default function TransferPage() {
           if (response.ok) {
             metadata = await response.json();
           } else {
-            console.error(`Lỗi khi lấy metadata cho token ${tokenId}`);
+            console.error(`Error fetching metadata for token ${tokenId}`);
           }
         }
       } catch (err) {
-        console.error(`Lỗi khi lấy tokenURI cho ${tokenId}:`, err);
+        console.error(`Error processing tokenURI for ${tokenId}:`, err);
       }
 
+      // Return structured IP data
       return {
         tokenId: tokenId.toString(),
         creator: userAddress,
@@ -100,13 +108,13 @@ export default function TransferPage() {
         metadata,
       };
     } catch (err) {
-      console.error(`Lỗi khi lấy dữ liệu IP cho token ${tokenId}:`, err);
-      setStatus("Không thể tải dữ liệu IP từ hợp đồng.");
+      console.error(`Error fetching IP data for token ${tokenId}:`, err);
+      setStatus("Failed to load IP data from contract.");
       return null;
     }
   };
 
-  // Cập nhật localStorage sau khi chuyển giao
+  // Update localStorage after a successful transfer
   const updateLocalStorageAfterTransfer = (userAddress: `0x${string}`, tokenId: string) => {
     const cachedData = localStorage.getItem(`mintedIPs_${userAddress}`);
     if (cachedData) {
@@ -120,7 +128,7 @@ export default function TransferPage() {
     }
   };
 
-  // Tải dữ liệu IP khi trang được tải
+  // Load IP data when the page is loaded
   useEffect(() => {
     if (isConnected && address && origin) {
       const userAddress = address as `0x${string}`;
@@ -128,12 +136,12 @@ export default function TransferPage() {
         setIsLoading(true);
         let loadedIp = loadIPFromLocalStorage(userAddress, tokenId);
         if (!loadedIp) {
-          // Nếu không tìm thấy trong localStorage, lấy từ hợp đồng
+          // If not found in localStorage, fetch from contract
           loadedIp = await fetchIPData(BigInt(tokenId), userAddress);
         }
         setIp(loadedIp);
         if (!loadedIp) {
-          setStatus("Không tìm thấy IP hoặc bạn không phải chủ sở hữu.");
+          setStatus("IP not found or you are not the owner.");
         }
         setIsLoading(false);
       };
@@ -141,38 +149,38 @@ export default function TransferPage() {
     }
   }, [isConnected, address, tokenId, origin]);
 
-  // Xử lý chuyển giao
+  // Handle IP transfer
   const handleTransfer = async () => {
     if (!origin || !walletClient || !address || !toAddress) {
-      setStatus("Vui lòng nhập địa chỉ nhận và đảm bảo ví đã kết nối.");
+      setStatus("Please enter recipient address and ensure wallet is connected.");
       return;
     }
 
-    // Kiểm tra định dạng địa chỉ nhận
+    // Validate recipient address format
     if (!toAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
-      setStatus("Địa chỉ nhận không hợp lệ. Vui lòng nhập địa chỉ Ethereum hợp lệ.");
+      setStatus("Invalid recipient address. Please enter a valid Ethereum address.");
       return;
     }
 
     setIsLoading(true);
-    setStatus("Đang chuẩn bị transfer...");
+    setStatus("Preparing transfer...");
 
     try {
       const chainId = await walletClient.getChainId();
       if (chainId !== campNetwork.id) {
-        setStatus("Chain không đúng. Đang chuyển sang BaseCAMP...");
+        setStatus("Incorrect chain. Switching to BaseCAMP...");
         await switchChainAsync({ chainId: campNetwork.id });
       }
 
-      // Kiểm tra owner bằng SDK
+      // Verify ownership using SDK
       const owner = await origin.ownerOf(BigInt(tokenId));
       if (owner.toLowerCase() !== address.toLowerCase()) {
-        setStatus("Bạn không phải chủ sở hữu của IP này.");
+        setStatus("You are not the owner of this IP.");
         setIsLoading(false);
         return;
       }
 
-      // Kiểm tra trạng thái token
+      // Check token status
       const publicClient = createPublicClient({
         chain: campNetwork,
         transport: http(),
@@ -184,72 +192,76 @@ export default function TransferPage() {
         args: [BigInt(tokenId)],
       });
       if (tokenStatus === 1) {
-        setStatus("Token này không tồn tại hoặc đã bị xóa.");
+        setStatus("This token does not exist or has been deleted.");
         setIsLoading(false);
         return;
       }
 
-      // Thực hiện transfer bằng SDK
+      // Perform transfer using SDK
       const txHash = await origin.safeTransferFrom(address, toAddress as `0x${string}`, BigInt(tokenId));
 
-      // Chờ xác nhận giao dịch
+      // Wait for transaction confirmation
       await publicClient.waitForTransactionReceipt({ hash: txHash });
-      setStatus(`Transfer thành công! Đang chuyển hướng...`);
+      setStatus(`Transfer successful! Redirecting...`);
 
-      // Cập nhật localStorage và phát sự kiện
+      // Update localStorage and emit event
       updateLocalStorageAfterTransfer(address as `0x${string}`, tokenId);
 
-      // Chuyển hướng về danh sách sau khi giao dịch được xác nhận
+      // Redirect to marketplace after transaction confirmation
       setTimeout(() => {
         router.push("/marketplace");
-      }, 1000); // Giảm thời gian chờ để cải thiện UX
+      }, 1000); // Short delay to improve UX
     } catch (error) {
-      console.error("Lỗi transfer:", error);
+      console.error("Transfer error:", error);
       const errMessage = error instanceof Error ? error.message : String(error);
       if (errMessage.includes("signature")) {
-        setStatus("Ký giao dịch thất bại.");
+        setStatus("Transaction signing failed.");
       } else if (errMessage.includes("gas")) {
-        setStatus("Không đủ gas. Vui lòng thêm CAMP vào ví của bạn.");
+        setStatus("Insufficient gas. Please add CAMP to your wallet.");
       } else if (errMessage.includes("NotTokenOwner")) {
-        setStatus("Bạn không phải chủ sở hữu của IP này.");
+        setStatus("You are not the owner of this IP.");
       } else if (errMessage.includes("ERC721NonexistentToken")) {
-        setStatus("Token này không tồn tại hoặc đã bị xóa.");
+        setStatus("This token does not exist or has been deleted.");
       } else {
-        setStatus(`Lỗi: ${errMessage}`);
+        setStatus(`Error: ${errMessage}`);
       }
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Render UI for unconnected wallet
   if (!isConnected) {
     return (
       <div className="text-center mt-10">
-        <p className="text-lg text-gray-600">Vui lòng kết nối ví để transfer IP.</p>
+        <p className="text-lg text-gray-600">Please connect your wallet to transfer IP.</p>
       </div>
     );
   }
 
+  // Render UI while loading IP data
   if (isLoading) {
     return (
       <div className="text-center mt-10">
-        <p className="text-lg text-gray-600">Đang tải dữ liệu IP...</p>
+        <p className="text-lg text-gray-600">Loading IP data...</p>
         {status && <p className="text-sm text-red-600 mt-2">{status}</p>}
       </div>
     );
   }
 
+  // Render UI if IP data is not found
   if (!ip) {
     return (
       <div className="text-center mt-10">
-        <p className="text-lg text-gray-600">Không tìm thấy IP. {status}</p>
+        <p className="text-lg text-gray-600">IP not found. {status}</p>
         <Link href="/marketplace" className="text-blue-500 hover:underline mt-4 inline-block">
-          Quay lại Marketplace
+          Return to Marketplace
         </Link>
       </div>
     );
   }
 
+  // Render transfer form UI
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg max-w-md mx-auto mt-10">
       <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 text-center">
@@ -265,7 +277,7 @@ export default function TransferPage() {
         />
       )}
       <div className="mt-6">
-        <label className="block text-lg font-semibold text-gray-700 mb-2">Địa chỉ nhận:</label>
+        <label className="block text-lg font-semibold text-gray-700 mb-2">Recipient Address:</label>
         <input
           type="text"
           value={toAddress}
@@ -279,12 +291,12 @@ export default function TransferPage() {
           disabled={isLoading}
           className="w-full px-6 py-3 bg-red-500 text-white font-medium rounded-lg shadow-md hover:bg-red-600 transition duration-300 ease-in-out disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
-          {isLoading ? "Đang transfer..." : "Transfer"}
+          {isLoading ? "Transferring..." : "Transfer"}
         </button>
       </div>
       {status && <p className="mt-4 text-center text-red-600 text-sm">{status}</p>}
       <Link href="/marketplace" className="text-blue-500 hover:underline mt-4 block text-center">
-        Đi đến Marketplace
+        Go to Marketplace
       </Link>
     </div>
   );
